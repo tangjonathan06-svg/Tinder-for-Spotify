@@ -126,6 +126,7 @@ if "sp_access_token" not in st.session_state:
         "show_dialog": "true",
     })
     st.markdown("Connect your Spotify account to get personalised recommendations.")
+    st.caption(f"Redirect URI: `{REDIRECT_URI}`")
     st.link_button("Login with Spotify", auth_url, use_container_width=True)
     st.stop()
 
@@ -260,3 +261,4 @@ if st.session_state.get("show_history"):
                     st.caption(song)
             else:
                 st.caption("None yet")
+
