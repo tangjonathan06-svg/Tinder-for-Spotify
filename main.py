@@ -18,6 +18,8 @@ def save_history(liked, disliked, seen):
     with open(HISTORY_FILE, "w") as f:
         json.dump({"liked": liked, "disliked": disliked, "seen": seen}, f)
 
+import base64
+
 load_dotenv()
 
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
@@ -25,29 +27,31 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".cache")
 SCOPE = "user-top-read user-read-recently-played user-follow-read user-library-read playlist-read-private"
 
-auth_manager = SpotifyOAuth(
-    client_id=os.getenv("SPOTIFY_CLIENT_ID"),
-    client_secret=os.getenv("SPOTIFY_CLIENT_SECRET"),
-    redirect_uri="http://127.0.0.1:8888/callback",
-    scope=SCOPE,
-    cache_path=CACHE_FILE,
-)
+_SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
+_SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
+_refresh_token = os.getenv("SPOTIFY_REFRESH_TOKEN")
 
-refresh_token = os.getenv("SPOTIFY_REFRESH_TOKEN")
-if refresh_token:
-    auth_manager.cache_handler.save_token_to_cache({
-        "access_token": "",
-        "token_type": "Bearer",
-        "expires_in": 3600,
-        "refresh_token": refresh_token,
-        "scope": SCOPE,
-        "expires_at": 0,
-    })
+if _refresh_token:
+    # Cloud path: exchange refresh token directly, no local server needed
+    _creds = base64.b64encode(f"{_SPOTIFY_CLIENT_ID}:{_SPOTIFY_CLIENT_SECRET}".encode()).decode()
+    _token_resp = requests.post(
+        "https://accounts.spotify.com/api/token",
+        headers={"Authorization": f"Basic {_creds}"},
+        data={"grant_type": "refresh_token", "refresh_token": _refresh_token},
+    ).json()
+    sp = spotipy.Spotify(auth=_token_resp["access_token"])
 else:
+    # Local path: standard OAuth flow
     if os.path.exists(CACHE_FILE):
         os.remove(CACHE_FILE)
-
-sp = spotipy.Spotify(auth_manager=auth_manager)
+    auth_manager = SpotifyOAuth(
+        client_id=_SPOTIFY_CLIENT_ID,
+        client_secret=_SPOTIFY_CLIENT_SECRET,
+        redirect_uri="http://127.0.0.1:8888/callback",
+        scope=SCOPE,
+        cache_path=CACHE_FILE,
+    )
+    sp = spotipy.Spotify(auth_manager=auth_manager)
 
 def top_tracks():
     return sp.current_user_top_tracks(limit=10)['items']
@@ -163,3 +167,4 @@ def get_track_info(song):
         pass
 
     return {'art': art, 'preview': preview}
+
