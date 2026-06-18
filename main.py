@@ -1,8 +1,8 @@
 import os
 import json
+import base64
 import requests
 import spotipy
-from spotipy.oauth2 import SpotifyOAuth
 from groq import Groq
 from dotenv import load_dotenv
 
@@ -18,69 +18,39 @@ def save_history(liked, disliked, seen):
     with open(HISTORY_FILE, "w") as f:
         json.dump({"liked": liked, "disliked": disliked, "seen": seen}, f)
 
-import base64
-
 load_dotenv()
-
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".cache")
-SCOPE = "user-top-read user-read-recently-played user-follow-read user-library-read playlist-read-private"
+def init_spotify(access_token):
+    return spotipy.Spotify(auth=access_token)
 
-_SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
-_SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
-_refresh_token = os.getenv("SPOTIFY_REFRESH_TOKEN")
-
-if _refresh_token:
-    # Cloud path: exchange refresh token directly, no local server needed
-    _creds = base64.b64encode(f"{_SPOTIFY_CLIENT_ID}:{_SPOTIFY_CLIENT_SECRET}".encode()).decode()
-    _token_resp = requests.post(
+def exchange_code(code, client_id, client_secret, redirect_uri):
+    creds = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+    return requests.post(
         "https://accounts.spotify.com/api/token",
-        headers={"Authorization": f"Basic {_creds}"},
-        data={"grant_type": "refresh_token", "refresh_token": _refresh_token},
+        headers={"Authorization": f"Basic {creds}"},
+        data={"grant_type": "authorization_code", "code": code, "redirect_uri": redirect_uri},
     ).json()
-    sp = spotipy.Spotify(auth=_token_resp["access_token"])
-else:
-    # Local path: standard OAuth flow
-    if os.path.exists(CACHE_FILE):
-        os.remove(CACHE_FILE)
-    auth_manager = SpotifyOAuth(
-        client_id=_SPOTIFY_CLIENT_ID,
-        client_secret=_SPOTIFY_CLIENT_SECRET,
-        redirect_uri="http://127.0.0.1:8888/callback",
-        scope=SCOPE,
-        cache_path=CACHE_FILE,
-    )
-    sp = spotipy.Spotify(auth_manager=auth_manager)
 
-def top_tracks():
-    return sp.current_user_top_tracks(limit=10)['items']
+def do_refresh(client_id, client_secret, refresh_token):
+    creds = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+    resp = requests.post(
+        "https://accounts.spotify.com/api/token",
+        headers={"Authorization": f"Basic {creds}"},
+        data={"grant_type": "refresh_token", "refresh_token": refresh_token},
+    ).json()
+    return resp.get("access_token")
 
-def top_artists():
-    return sp.current_user_top_artists(limit=10)['items']
-
-def recently_played():
-    return sp.current_user_recently_played(limit=10)['items']
-
-def followed_artists():
-    return sp.current_user_followed_artists(limit=10)['artists']['items']
-
-def playlists():
-    return sp.current_user_playlists(limit=10)['items']
-
-def saved_tracks():
-    return sp.current_user_saved_tracks(limit=10)['items']
-
-def build_profile():
-    tracks = top_tracks()
-    artists = top_artists()
+def build_profile(sp):
+    tracks = sp.current_user_top_tracks(limit=10)['items']
+    artists = sp.current_user_top_artists(limit=10)['items']
     genres = []
     for a in artists:
         genres.extend(a.get('genres', []))
-    recent = recently_played()
-    followed = followed_artists()
-    user_playlists = playlists()
-    saved = saved_tracks()
+    recent = sp.current_user_recently_played(limit=10)['items']
+    followed = sp.current_user_followed_artists(limit=10)['artists']['items']
+    user_playlists = sp.current_user_playlists(limit=10)['items']
+    saved = sp.current_user_saved_tracks(limit=10)['items']
     return {
         'tracks': ', '.join([t['name'] + " by " + t['artists'][0]['name'] for t in tracks]),
         'artists': ', '.join([a['name'] for a in artists]),
@@ -144,7 +114,7 @@ Do not repeat any song from the already shown list above."""
     )
     return response.choices[0].message.content.strip()
 
-def get_track_info(song):
+def get_track_info(sp, song):
     if ' - ' in song:
         title, artist = song.split(' - ', 1)
     else:
