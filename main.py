@@ -121,11 +121,15 @@ def get_track_info(sp, song):
         title, artist = song, ''
 
     art = None
-    results = sp.search(q=f"track:{title} artist:{artist}", type='track', limit=1)
-    items = results['tracks']['items']
-    if items:
-        track = items[0]
-        art = track['album']['images'][0]['url'] if track['album']['images'] else None
+    for query in [f"track:{title} artist:{artist}", f"{title} {artist}", title]:
+        try:
+            results = sp.search(q=query.strip(), type='track', limit=1)
+            items = results['tracks']['items']
+            if items and items[0]['album']['images']:
+                art = items[0]['album']['images'][0]['url']
+                break
+        except Exception:
+            continue
 
     preview = None
     try:
