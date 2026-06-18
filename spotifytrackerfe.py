@@ -20,7 +20,6 @@ def save_history(liked, disliked, seen):
 load_dotenv()
 
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-
 sp = None
 
 def init_spotify(access_token):
@@ -141,4 +140,3 @@ def get_track_info(song):
         pass
 
     return {'art': art, 'preview': preview}
-
