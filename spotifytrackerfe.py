@@ -14,7 +14,7 @@ def _secret(key, default=""):
 
 CLIENT_ID     = _secret("SPOTIFY_CLIENT_ID")
 CLIENT_SECRET = _secret("SPOTIFY_CLIENT_SECRET")
-REDIRECT_URI  = _secret("SPOTIFY_REDIRECT_URI", "http://localhost:8501")
+REDIRECT_URI  = _secret("SPOTIFY_REDIRECT_URI", "http://127.0.0.1:8501")
 SCOPE = "user-top-read user-read-recently-played user-follow-read user-library-read playlist-read-private"
 
 # ── CSS ──────────────────────────────────────────────────────────────────────
@@ -95,6 +95,12 @@ st.markdown("""
     }
 
     .stAudio { display: flex; justify-content: center; }
+
+    [data-testid="stLinkButton"] a {
+        background-color: #1DB954 !important;
+        color: black !important;
+        border-radius: 12px !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -260,4 +266,5 @@ if st.session_state.get("show_history"):
                     st.caption(song)
             else:
                 st.caption("None yet")
+
 
