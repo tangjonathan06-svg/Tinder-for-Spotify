@@ -78,14 +78,14 @@ def _fetch_song(profile, liked, disliked, seen, preferences=None):
     if preferences:
         genres = preferences.get('genres', [])
         vibe = preferences.get('vibe') or []
-        vibe_str = ', '.join(vibe) if isinstance(vibe, list) else (vibe or 'any')
+        vibe_str = ', '.join(vibe) if vibe else 'any'
         genre_str = ', '.join(genres) if genres else 'none specified'
         genre_rule = f"STRICT RULE: Only recommend songs that belong to one of these genres: {genre_str}. Do not suggest songs outside these genres." if genres else ""
         pref_block = f"""
 User preferences (from onboarding quiz):
 - Preferred genres: {genre_str}
 - Current vibe: {vibe_str}
-- Era preference: {preferences.get('era', 'any')}
+- Era preference: {preferences.get('era') or 'any'}
 - Favorite artists they mentioned: {preferences.get('artists') or 'none'}
 {genre_rule}
 """
@@ -107,12 +107,19 @@ ALREADY SHOWN — DO NOT RECOMMEND ANY OF THESE UNDER ANY CIRCUMSTANCES: {seen_s
 Respond with ONLY: Song Title - Artist Name
 Do not repeat any song from the already shown list above."""
 
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.9
-    )
-    return response.choices[0].message.content.strip()
+    for model in ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"]:
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.9,
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            if "rate_limit_exceeded" in str(e):
+                continue
+            raise
+    raise RuntimeError("All Groq models are rate-limited. Try again tomorrow.")
 
 def get_track_info(sp, song):
     if ' - ' in song:
@@ -141,4 +148,3 @@ def get_track_info(sp, song):
         pass
 
     return {'art': art, 'preview': preview}
-
