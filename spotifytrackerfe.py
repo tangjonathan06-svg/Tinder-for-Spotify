@@ -185,7 +185,12 @@ if "quiz_done" not in st.session_state:
 # ── Profile load (once per session) ──────────────────────────────────────────
 if "profile" not in st.session_state:
     with st.spinner("Loading your Spotify profile..."):
-        st.session_state.profile = build_profile(sp)
+        try:
+            st.session_state.profile = build_profile(sp)
+        except Exception as e:
+            st.error(f"Couldn't load your Spotify profile. Try logging in again. ({e})")
+            del st.session_state["sp_access_token"]
+            st.stop()
     save_history([], [], [])
     st.session_state.liked = []
     st.session_state.disliked = []
@@ -195,14 +200,24 @@ if "profile" not in st.session_state:
 # ── Fetch next song ───────────────────────────────────────────────────────────
 if st.session_state.current_song is None:
     with st.spinner("Finding your next song..."):
-        st.session_state.current_song = get_next_song(
-            st.session_state.profile,
-            st.session_state.liked,
-            st.session_state.disliked,
-            st.session_state.seen,
-            st.session_state.get("preferences"),
-        )
-        info = get_track_info(sp, st.session_state.current_song)
+        try:
+            st.session_state.current_song = get_next_song(
+                st.session_state.profile,
+                st.session_state.liked,
+                st.session_state.disliked,
+                st.session_state.seen,
+                st.session_state.get("preferences"),
+            )
+        except RuntimeError as e:
+            st.error(str(e))
+            st.stop()
+        except Exception as e:
+            st.error(f"Couldn't get a recommendation right now. ({e})")
+            st.stop()
+        try:
+            info = get_track_info(sp, st.session_state.current_song)
+        except Exception:
+            info = {'art': None, 'preview': None}
         st.session_state.current_art = info['art']
         st.session_state.current_preview = info['preview']
 
@@ -266,5 +281,3 @@ if st.session_state.get("show_history"):
                     st.caption(song)
             else:
                 st.caption("None yet")
-
-
