@@ -188,7 +188,11 @@ if "profile" not in st.session_state:
         try:
             st.session_state.profile = build_profile(sp)
         except Exception as e:
-            st.error(f"Couldn't load your Spotify profile. Try logging in again. ({e})")
+            if "not registered" in str(e):
+                st.error("Your Spotify account doesn't have access to this app yet.")
+                st.info("Email **tangjonathan06@gmail.com** to request access.")
+            else:
+                st.error(f"Couldn't load your Spotify profile. Try logging in again. ({e})")
             del st.session_state["sp_access_token"]
             st.stop()
     save_history([], [], [])
@@ -281,3 +285,4 @@ if st.session_state.get("show_history"):
                     st.caption(song)
             else:
                 st.caption("None yet")
+
